@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enter OTP</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(to right, #4A90E2, #FF4B5C); /* Blue and Pink Gradient */
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .otp-container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            animation: fadeIn 1s ease-out;
+        }
+
+        h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #4A90E2; /* TMB Blue Color */
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            font-size: 14px;
+            color: #555;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            border-color: #FF4B5C; /* TMB Pink Color */
+            outline: none;
+        }
+
+        .form-group .masked-input {
+            font-family: monospace;
+            letter-spacing: 1px;
+        }
+
+        .form-group .error {
+            color: red;
+            font-size: 14px;
+            display: none;
+            margin-top: 8px;
+        }
+
+        .form-group button {
+            width: 100%;
+            padding: 12px;
+            background-color: #FF4B5C; /* TMB Pink Color */
+            color: white;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .form-group button:hover {
+            background-color: #E23B50; /* Darker shade of Pink */
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .container {
+            max-width: 400px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="otp-container">
+            <h2>Enter OTP</h2>
+            <form id="otpForm" action="/verify-otp" method="POST">
+                <!-- Mobile Number masked -->
+                <div class="form-group">
+                    <label for="mobile">Mobile Number</label>
+                    <input type="text" id="mobile" class="masked-input" disabled>
+                </div>
+
+                <!-- OTP Input -->
+                <div class="form-group">
+                    <label for="otp">OTP</label>
+                    <input type="text" id="otp" placeholder="Enter OTP" name="otp" maxlength="6">
+                    <div class="error" id="otpError">OTP must be exactly 6 digits long.</div>
+                </div>
+
+                <div class="form-group">
+                    <button type="submit">Verify OTP</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Sample mobile number
+        const mobileNumber = "9876543210";
+
+        // Masking the mobile number to show only last 4 digits
+        document.getElementById('mobile').value = "*****" + mobileNumber.slice(-4);
+
+        // Form validation before submission
+        document.getElementById('otpForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const otp = document.getElementById('otp').value;
+
+            // Reset previous error messages
+            document.getElementById('otpError').style.display = 'none';
+
+            let valid = true;
+
+            // Validate OTP (must be exactly 6 digits)
+            if (otp.length !== 6 || isNaN(otp)) {
+                document.getElementById('otpError').style.display = 'block';
+                valid = false;
+            }
+
+            // If valid, proceed to submit the form (you can replace this with an actual API call)
+            if (valid) {
+                // You can actually submit the form to the server here
+                this.submit();  // This will trigger the form action and send data to the backend
+            }
+        });
+    </script>
+
+</body>
+</html>
+
+
+----- 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome - Logged In Successfully</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(120deg, #4A90E2, #FF4B5C); /* Blue and Pink Gradient */
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+        }
+
+        .welcome-container {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            width: 80%;
+            max-width: 600px;
+            animation: fadeIn 1s ease-out;
+        }
+
+        h1 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #fff;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        p {
+            font-size: 18px;
+            color: #e0e0e0;
+            margin-bottom: 40px;
+            line-height: 1.5;
+        }
+
+        .welcome-message {
+            font-size: 24px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 20px;
+        }
+
+        .welcome-button {
+            padding: 15px 30px;
+            background-color: #FF4B5C; /* TMB Pink */
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .welcome-button:hover {
+            background-color: #E23B50; /* Darker shade of Pink */
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .container {
+            max-width: 600px;
+            padding: 20px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="welcome-container">
+            <h1>Welcome Back!</h1>
+            <p>You have successfully logged in.</p>
+            <div class="welcome-message">Hello, [Your Name]!</div>
+            <button class="welcome-button" onclick="window.location.href='dashboard.html'">Go to Dashboard</button>
+        </div>
+    </div>
+
+</body>
+</html>
+--- 
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Set Password</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(120deg, #4A90E2, #FF4B5C); /* Blue and Pink Gradient */
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+        }
+
+        .password-container {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            width: 80%;
+            max-width: 600px;
+            animation: fadeIn 1s ease-out;
+        }
+
+        h1 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #fff;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+            width: 100%;
+        }
+
+        label {
+            font-size: 16px;
+            color: #fff;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input {
+            padding: 10px;
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            margin-top: 5px;
+            font-size: 16px;
+        }
+
+        .error {
+            color: #e74c3c;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .submit-button {
+            padding: 15px 30px;
+            background-color: #FF4B5C; /* TMB Pink */
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .submit-button:hover {
+            background-color: #E23B50; /* Darker shade of Pink */
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="password-container">
+        <h1>Set Your Password</h1>
+        <form id="setPasswordForm">
+            <div class="form-group">
+                <label for="password">New Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter your new password" required>
+                <div id="passwordError" class="error"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm your new password" required>
+                <div id="confirmPasswordError" class="error"></div>
+            </div>
+
+            <button type="submit" class="submit-button">Set Password</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('setPasswordForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            // Clear previous errors
+            document.getElementById('passwordError').textContent = '';
+            document.getElementById('confirmPasswordError').textContent = '';
+
+            let password = document.getElementById('password').value;
+            let confirmPassword = document.getElementById('confirmPassword').value;
+            let isValid = true;
+
+            // Password validation
+            if (password.length < 6) {
+                document.getElementById('passwordError').textContent = 'Password must be at least 6 characters.';
+                isValid = false;
+            }
+
+            // Confirm password validation
+            if (password !== confirmPassword) {
+                document.getElementById('confirmPasswordError').textContent = 'Passwords do not match.';
+                isValid = false;
+            }
+
+            // If everything is valid, submit the form (simulate success here)
+            if (isValid) {
+                alert('Password successfully set!');
+                // Here you can submit the form or make an API call for real submission
+            }
+        });
+    </script>
+
+</body>
+</html>
+
