@@ -1,0 +1,787 @@
+✅ Why RowMapper is used?
+
+In Spring JDBC, RowMapper is used to convert a row in a ResultSet into a Java object. For example, if you're fetching user data from a table like this:
+
+SELECT user_id, name, mobile, email, password, is_verified FROM users;
+
+Then you need to map each row of that result to a UserApp object — that’s what RowMapper<UserApp> does.
+✅ What should the UserAppServiceImpl logic be?
+
+If your goal is to register a user by inserting data into the database, your logic inside registerUser() should look like this:
+✔️ UserAppServiceImpl.java
+
+package in.tmb.userapp.service;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+
+import in.tmb.userapp.model.UserApp;
+import in.tmb.userapp.util.DbUtil;
+
+public class UserAppServiceImpl implements UserAppService {
+
+    @Override
+    public boolean registerUser(UserApp userApp) {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        try {
+            conn = DbUtil.getConnection(); // get database connection
+            String sql = "INSERT INTO users (name, mobile, email, password, is_verified) VALUES (?, ?, ?, ?, ?)";
+            stmt = conn.prepareStatement(sql);
+            stmt.setString(1, userApp.getName());
+            stmt.setString(2, userApp.getMobile());
+            stmt.setString(3, userApp.getEmail());
+            stmt.setString(4, userApp.getPassword());
+            stmt.setBoolean(5, false); // default not verified
+
+            int rows = stmt.executeUpdate();
+            return rows > 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        } finally {
+            try { if (stmt != null) stmt.close(); } catch (Exception ignored) {}
+            try { if (conn != null) conn.close(); } catch (Exception ignored) {}
+        }
+    }
+}
+
+✅ Should you make a DB Utility class?
+
+Yes, absolutely. It’s a good practice to centralize database connection code to avoid duplication and make maintenance easier.
+✔️ DbUtil.java
+
+package in.tmb.userapp.util;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+
+public class DbUtil {
+
+    private static final String URL = "jdbc:postgresql://localhost:5432/UserApp";
+    private static final String USER = "postgres";
+    private static final String PASSWORD = "test@123";
+
+    public static Connection getConnection() throws Exception {
+        Class.forName("org.postgresql.Driver"); // Load driver
+        return DriverManager.getConnection(URL, USER, PASSWORD);
+    }
+}
+
+✅ When should you use RowMapper?
+
+Use RowMapper when you're reading from the database, for example:
+
+String sql = "SELECT * FROM users WHERE email=?";
+UserApp user = jdbcTemplate.queryForObject(sql, new Object[]{email}, new UserAppMapper());
+
+But when you're writing/inserting data (like during registration), just use a PreparedStatement.
+✅ Summary of what you need:
+
+    ✅ Use DbUtil to manage database connections.
+
+    ✅ In UserAppServiceImpl, write logic to INSERT data into DB.
+
+    ✅ Use RowMapper only when you need to SELECT and convert DB rows to Java objects.
+
+    ✅ Avoid @Autowired for now; use manual wiring as you decided.
+
+Would you like me to help you write the UserAppMapper class properly too?
+You said:
+Can I add anything in any of the above files to check whether the db connection is established and queries are getting inserted?
+ChatGPT said:
+
+Yes, Divya — you can definitely add simple debug print statements or log messages in your code to confirm the following:
+
+    ✅ Database connection is established.
+
+    ✅ Query is executed (data inserted).
+
+Below are the exact changes you can make in each relevant file:
+✅ In DbUtil.java → Check DB connection
+
+Add a print/log statement after connection is established:
+
+public static Connection getConnection() throws Exception {
+    Class.forName("org.postgresql.Driver"); // Load driver
+    Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
+    System.out.println("✅ DB Connection Established.");
+    return conn;
+}
+
+✅ In UserAppServiceImpl.java → Confirm insertion
+
+Print messages before and after the query execution:
+
+System.out.println("▶️ Preparing to insert user: " + userApp.getName());
+
+int rows = stmt.executeUpdate();
+
+if (rows > 0) {
+    System.out.println("✅ User inserted successfully into database.");
+} else {
+    System.out.println("❌ User insertion failed.");
+}
+
+✅ Optional: In UserAppController (POST handler)
+
+System.out.println("📩 Received registration request for: " + name);
+
+✅ Additional Debug Tip (View DB Content Temporarily)
+
+If needed, right after inserting, you can query back the user and print it to confirm:
+
+ResultSet rs = stmt.executeQuery("SELECT * FROM users WHERE email='" + userApp.getEmail() + "'");
+if (rs.next()) {
+    System.out.println("🔍 DB Check - Inserted User: " + rs.getString("name"));
+}
+
+(Only do this for debugging — not recommended in production code due to SQL injection risks)
+✅ Bonus Tip: Enable PostgreSQL Logging
+
+If you want to see queries logged on the DB side:
+
+    Open postgresql.conf.
+
+    Set:
+
+    logging_collector = on
+    log_statement = 'all'
+
+    Restart PostgreSQL.
+
+Would you like a version that uses Logger instead of System.out.println() for production readiness?
+You said:
+Nope. 
+
+Okay. I want to validate the OTP. 
+
+For the time being, let the otp get stored in db like everything else and I'll copy it from the Db and paste it in UI . What about validation? Entering correct OTP or not? How will I check?? 
+
+In which all files should I make the change? 
+I have another UI ready for it. I have another model class. MobileOtp verification. 
+ChatGPT said:
+
+Perfect, Divya. Since you already have:
+
+    ✅ A separate OTP verification UI
+
+    ✅ A separate model class for OTP (let’s say MobileOtp)
+
+    ✅ OTP is already stored in DB when generated
+
+You now want to:
+
+    ✅ Validate the OTP entered by the user against what’s stored in the DB.
+
+Let me walk you through the flow and show you what files to change and what logic to write.
+✅ Flow: OTP Validation
+
+    User enters mobile + OTP on UI.
+
+    Form submits to a new POST URL like /verifyOtp.do.
+
+    Controller checks DB for that mobile's stored OTP.
+
+    If match: ✅ Verified → Update isVerified = true.
+
+    Else: ❌ Show error message.
+
+✅ Changes in These Files:
+Layer	File to Modify or Create	What to Do
+🧠 Model	MobileOtp.java	Already present — holds mobile & otp.
+🧩 Controller	UserAppController.java	Add method for handling POST /verifyOtp.do
+⚙️ Service	UserAppServiceImpl.java	Add method: boolean verifyOtp(String mobile, String otp)
+🗃️ DB Utility	DbUtil.java	No change needed.
+🖥️ UI (JSP)	otpverify.jsp	Already present — should post to /verifyOtp.do with mobile, otp.
+✅ Example: Controller
+
+@RequestMapping(value="/verifyOtp.do", method = RequestMethod.POST)
+public String handleOtpVerification(HttpServletRequest request, ModelMap model) {
+    String mobile = request.getParameter("mobile");
+    String otp = request.getParameter("otp");
+
+    UserAppServiceImpl service = new UserAppServiceImpl();  // or use existing instance
+    boolean isValid = service.verifyOtp(mobile, otp);
+
+    if (isValid) {
+        model.addAttribute("message", "✅ Mobile verified successfully.");
+    } else {
+        model.addAttribute("error", "❌ Invalid OTP. Please try again.");
+    }
+
+    return "otpverify"; // or wherever you want to navigate
+}
+
+✅ Example: Service Method
+
+Add this in UserAppServiceImpl.java:
+
+public boolean verifyOtp(String mobile, String otp) {
+    Connection conn = null;
+    PreparedStatement stmt = null;
+    ResultSet rs = null;
+
+    try {
+        conn = DbUtil.getConnection();
+        String sql = "SELECT otp FROM mobile_otp WHERE mobile = ?";
+        stmt = conn.prepareStatement(sql);
+        stmt.setString(1, mobile);
+        rs = stmt.executeQuery();
+
+        if (rs.next()) {
+            String dbOtp = rs.getString("otp");
+            if (otp != null && otp.equals(dbOtp)) {
+                // Optional: update is_verified
+                PreparedStatement updateStmt = conn.prepareStatement("UPDATE users SET is_verified=true WHERE mobile=?");
+                updateStmt.setString(1, mobile);
+                updateStmt.executeUpdate();
+                return true;
+            }
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
+    } finally {
+        try { if (rs != null) rs.close(); } catch (Exception ignored) {}
+        try { if (stmt != null) stmt.close(); } catch (Exception ignored) {}
+        try { if (conn != null) conn.close(); } catch (Exception ignored) {}
+    }
+    return false;
+}
+
+✅ Example: JSP (otpverify.jsp)
+
+<form action="verifyOtp.do" method="post">
+    <label for="mobile">Mobile:</label>
+    <input type="text" name="mobile" id="mobile" required><br/>
+
+    <label for="otp">Enter OTP:</label>
+    <input type="text" name="otp" id="otp" required><br/>
+
+    <input type="submit" value="Verify OTP">
+</form>
+
+<p style="color:green">${message}</p>
+<p style="color:red">${error}</p>
+
+✅ Summary of What You Need to Do
+
+    ✅ Add handleOtpVerification() in controller.
+
+    ✅ Add verifyOtp() in service.
+
+    ✅ Ensure otpverify.jsp submits mobile + otp to /verifyOtp.do.
+
+    ✅ Done! OTP verification will work based on DB-stored OTP.
+
+Would you like help writing a MobileOtpMapper too (if you plan to use Spring JdbcTemplate later)?
+You said:
+YEs. Please
+ChatGPT said:
+
+Great, Divya. Here's a clean MobileOtpMapper class that you can use if you switch to using Spring’s JdbcTemplate approach later.
+
+This mapper will map one row from the mobile_otp table into a MobileOtp Java object.
+✅ Step 1: Model Class — MobileOtp.java
+
+Make sure your MobileOtp model has the correct fields and getters/setters:
+
+package in.tmb.userapp.bean;
+
+public class MobileOtp {
+    private String mobile;
+    private String otp;
+
+    // Getters and setters
+    public String getMobile() {
+        return mobile;
+    }
+
+    public void setMobile(String mobile) {
+        this.mobile = mobile;
+    }
+
+    public String getOtp() {
+        return otp;
+    }
+
+    public void setOtp(String otp) {
+        this.otp = otp;
+    }
+}
+
+✅ Step 2: Mapper Class — MobileOtpMapper.java
+
+package in.tmb.userapp.mapper;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import org.springframework.jdbc.core.RowMapper;
+import in.tmb.userapp.bean.MobileOtp;
+
+public class MobileOtpMapper implements RowMapper<MobileOtp> {
+    @Override
+    public MobileOtp mapRow(ResultSet rs, int rowNum) throws SQLException {
+        MobileOtp mobileOtp = new MobileOtp();
+
+        if (rs.getString("mobile") != null && !rs.getString("mobile").trim().isEmpty()) {
+            mobileOtp.setMobile(rs.getString("mobile"));
+        }
+
+        if (rs.getString("otp") != null && !rs.getString("otp").trim().isEmpty()) {
+            mobileOtp.setOtp(rs.getString("otp"));
+        }
+
+        return mobileOtp;
+    }
+}
+
+✅ How to Use with JdbcTemplate
+
+In your service (if you switch to JdbcTemplate later), you can use:
+
+String sql = "SELECT * FROM mobile_otp WHERE mobile = ?";
+MobileOtp otpObj = jdbcTemplate.queryForObject(sql, new Object[]{mobile}, new MobileOtpMapper());
+
+if (otpObj != null && otpObj.getOtp().equals(inputOtp)) {
+    // OTP matched
+}
+
+Let me know if you also want to store OTPs using JdbcTemplate, or just verify them for now.
+You said:
+I want to store.
+ChatGPT said:
+
+Great, Divya! If you're ready to store the OTP in the mobile_otp table using JdbcTemplate, here's a complete solution.
+✅ Use Case: Store OTP in DB
+
+You will call this logic after user registration or when sending OTP — to store the OTP against the mobile number.
+✅ Step 1: SQL Table (Assumed)
+
+CREATE TABLE mobile_otp (
+    mobile VARCHAR(15) PRIMARY KEY,
+    otp VARCHAR(10)
+);
+
+✅ Step 2: Insert or Update OTP (In Service Layer)
+
+Use this method in your UserAppServiceImpl class:
+
+import org.springframework.jdbc.core.JdbcTemplate;
+
+public class UserAppServiceImpl {
+    private JdbcTemplate jdbcTemplate;
+
+    // Setter for jdbcTemplate since we're not using @Autowired
+    public void setJdbcTemplate(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    public boolean saveOtp(String mobile, String otp) {
+        try {
+            // Check if OTP already exists for mobile
+            String checkSql = "SELECT COUNT(*) FROM mobile_otp WHERE mobile = ?";
+            int count = jdbcTemplate.queryForObject(checkSql, new Object[]{mobile}, Integer.class);
+
+            String sql;
+            if (count > 0) {
+                // Update existing OTP
+                sql = "UPDATE mobile_otp SET otp = ? WHERE mobile = ?";
+                jdbcTemplate.update(sql, otp, mobile);
+                System.out.println("✅ OTP updated for mobile: " + mobile);
+            } else {
+                // Insert new OTP
+                sql = "INSERT INTO mobile_otp (mobile, otp) VALUES (?, ?)";
+                jdbcTemplate.update(sql, mobile, otp);
+                System.out.println("✅ OTP inserted for mobile: " + mobile);
+            }
+
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("❌ Failed to store OTP for mobile: " + mobile);
+            return false;
+        }
+    }
+}
+
+✅ Step 3: Call This Method from Controller (e.g., after registration)
+
+In UserAppController.java, after successful registration:
+
+String otp = generateOtp();  // write a simple 4/6-digit OTP generator
+boolean otpSaved = userAppService.saveOtp(mobile, otp);
+
+if (otpSaved) {
+    System.out.println("📩 OTP stored in DB: " + otp);
+}
+
+✅ Optional: Simple OTP Generator
+
+public String generateOtp() {
+    int otp = (int)(Math.random() * 9000) + 1000; // 4-digit OTP
+    return String.valueOf(otp);
+}
+
+✅ Summary
+
+    Add saveOtp() in your service class.
+
+    Use it during registration or OTP request.
+
+    Use the earlier MobileOtpMapper to fetch & verify OTP.
+
+    Use generateOtp() to create OTPs temporarily for testing.
+
+Let me know if you also want to expire OTP after X minutes or avoid resending the same OTP again!
+You said:
+How are we generating the OTP?
+ChatGPT said:
+
+You're generating the OTP using a small method like this, which produces a 4-digit random number each time:
+✅ OTP Generator (Java Method)
+
+public String generateOtp() {
+    int otp = (int)(Math.random() * 9000) + 1000;
+    return String.valueOf(otp);
+}
+
+🔍 How It Works:
+
+    Math.random() generates a double between 0.0 (inclusive) and 1.0 (exclusive).
+
+    Math.random() * 9000 gives a number between 0.0 and 8999.999....
+
+    Adding 1000 shifts the range to 1000–9999.
+
+    (int) truncates the decimal part, giving a 4-digit integer.
+
+    String.valueOf() converts it to a String to store in DB or send to UI.
+
+🔄 Example Output:
+
+    Could generate: 1234, 8672, 4901, etc.
+
+If you want 6-digit OTPs, just change the range:
+
+int otp = (int)(Math.random() * 900000) + 100000;
+
+Would you like to store a timestamp with the OTP to handle expiry later?
+You said:
+Yes
+ChatGPT said:
+
+Perfect, Divya! To handle OTP expiry, you’ll need to store a timestamp in the database along with the OTP. This lets you check if the OTP is still valid when the user enters it.
+✅ Step 1: Modify the Table
+
+Update your mobile_otp table to include a generated_at timestamp column:
+
+ALTER TABLE mobile_otp
+ADD COLUMN generated_at TIMESTAMP;
+
+If you're creating the table from scratch:
+
+CREATE TABLE mobile_otp (
+    mobile VARCHAR(15) PRIMARY KEY,
+    otp VARCHAR(10),
+    generated_at TIMESTAMP
+);
+
+✅ Step 2: Modify saveOtp() Method
+
+Update your service logic to store the current timestamp:
+
+public boolean saveOtp(String mobile, String otp) {
+    try {
+        String checkSql = "SELECT COUNT(*) FROM mobile_otp WHERE mobile = ?";
+        int count = jdbcTemplate.queryForObject(checkSql, new Object[]{mobile}, Integer.class);
+
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+
+        if (count > 0) {
+            String sql = "UPDATE mobile_otp SET otp = ?, generated_at = ? WHERE mobile = ?";
+            jdbcTemplate.update(sql, otp, now, mobile);
+        } else {
+            String sql = "INSERT INTO mobile_otp (mobile, otp, generated_at) VALUES (?, ?, ?)";
+            jdbcTemplate.update(sql, mobile, otp, now);
+        }
+
+        return true;
+    } catch (Exception e) {
+        e.printStackTrace();
+        return false;
+    }
+}
+
+✅ Step 3: Modify the MobileOtp Bean
+
+Add the generatedAt field:
+
+private Timestamp generatedAt;
+
+public Timestamp getGeneratedAt() {
+    return generatedAt;
+}
+
+public void setGeneratedAt(Timestamp generatedAt) {
+    this.generatedAt = generatedAt;
+}
+
+✅ Step 4: Update the MobileOtpMapper
+
+if (rs.getTimestamp("generated_at") != null) {
+    mobileOtp.setGeneratedAt(rs.getTimestamp("generated_at"));
+}
+
+✅ Step 5: OTP Expiry Check During Validation
+
+Check OTP is valid only within 5 minutes (300 seconds):
+
+MobileOtp otpObj = jdbcTemplate.queryForObject(sql, new Object[]{mobile}, new MobileOtpMapper());
+
+if (otpObj != null) {
+    Timestamp generatedAt = otpObj.getGeneratedAt();
+    long secondsElapsed = (System.currentTimeMillis() - generatedAt.getTime()) / 1000;
+
+    if (secondsElapsed <= 300 && otpObj.getOtp().equals(inputOtp)) {
+        // ✅ Valid OTP
+    } else {
+        // ❌ OTP expired or incorrect
+    }
+}
+
+Let me know if you want to auto-delete expired OTPs or allow retry attempts!
+You said:
+Make a UI for resetting the password using Jsp and HTML
+ChatGPT said:
+
+Sure, Divya! Here's a simple Reset Password UI using JSP + HTML. This form assumes the user has already verified their OTP and now needs to set a new password.
+✅ reset_password.jsp
+
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Reset Password</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f6f6f6;
+        }
+        .reset-container {
+            width: 400px;
+            margin: 100px auto;
+            background-color: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.1);
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin-top: 8px;
+            margin-bottom: 16px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+        input[type="submit"] {
+            background-color: #1a73e8;
+            color: white;
+            padding: 12px;
+            width: 100%;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .msg {
+            text-align: center;
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="reset-container">
+    <h2>Reset Your Password</h2>
+    <form action="resetPassword.do" method="post">
+        <label for="mobile">Registered Mobile Number:</label>
+        <input type="text" name="mobile" id="mobile" required>
+
+        <label for="newPassword">New Password:</label>
+        <input type="password" name="newPassword" id="newPassword" required>
+
+        <label for="confirmPassword">Confirm Password:</label>
+        <input type="password" name="confirmPassword" id="confirmPassword" required>
+
+        <input type="submit" value="Reset Password">
+    </form>
+
+    <div class="msg">${message}</div>
+</div>
+
+</body>
+</html>
+
+✅ What It Does:
+
+    Takes mobile number, new password, and confirmation.
+
+    Sends POST request to /resetPassword.do.
+
+    Displays a message (${message}) from your controller (like "Password updated" or "Passwords don’t match").
+
+✅ Next Steps
+
+Would you like me to help you write the matching Controller, Service, and DAO logic to verify the mobile and update the password?
+You said:
+YEs
+ChatGPT said:
+
+Great, Divya! Let's implement the Reset Password functionality. We'll write the necessary Controller, Service, and DAO classes to handle the flow of resetting the password.
+✅ Flow:
+
+    User enters the mobile number (on reset_password.jsp).
+
+    System verifies the mobile and checks if it's registered.
+
+    User enters a new password and confirms it.
+
+    System updates the password in the database.
+
+✅ Step 1: Controller — ResetPasswordController.java
+
+In your controller, we'll handle the following:
+
+    GET request: Display the reset password form.
+
+    POST request: Handle the reset password logic.
+
+package in.tmb.userapp.controller;
+
+import in.tmb.userapp.service.UserAppService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.ui.ModelMap;
+
+@Controller
+public class ResetPasswordController {
+
+    @Autowired
+    private UserAppService userAppService;
+
+    @RequestMapping(value = "/resetPassword", method = RequestMethod.GET)
+    public String showResetPasswordPage() {
+        return "reset_password";  // return the JSP form
+    }
+
+    @RequestMapping(value = "/resetPassword", method = RequestMethod.POST)
+    public String resetPassword(String mobile, String newPassword, String confirmPassword, ModelMap model) {
+        if (newPassword.equals(confirmPassword)) {
+            boolean success = userAppService.resetPassword(mobile, newPassword);
+            if (success) {
+                model.addAttribute("message", "Password successfully updated.");
+            } else {
+                model.addAttribute("message", "Error updating password. Please try again.");
+            }
+        } else {
+            model.addAttribute("message", "Passwords do not match.");
+        }
+        return "reset_password";  // return the form with message
+    }
+}
+
+✅ Step 2: Service — UserAppService.java
+
+In the UserAppService interface, define the method for resetting the password:
+
+public interface UserAppService {
+    boolean resetPassword(String mobile, String newPassword);
+}
+
+✅ Step 3: Service Implementation — UserAppServiceImpl.java
+
+Now, in the implementation class UserAppServiceImpl, we handle the password reset by updating the user record in the database.
+
+package in.tmb.userapp.service;
+
+import in.tmb.userapp.dao.UserAppDAO;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class UserAppServiceImpl implements UserAppService {
+
+    @Autowired
+    private UserAppDAO userAppDAO;
+
+    @Override
+    public boolean resetPassword(String mobile, String newPassword) {
+        return userAppDAO.updatePassword(mobile, newPassword);
+    }
+}
+
+✅ Step 4: DAO Interface — UserAppDAO.java
+
+In the DAO interface, define the method for updating the password:
+
+public interface UserAppDAO {
+    boolean updatePassword(String mobile, String newPassword);
+}
+
+✅ Step 5: DAO Implementation — UserAppDAOImpl.java
+
+In the DAO implementation class, we will use JdbcTemplate to update the password in the user_app table (assuming you have a table for user data):
+
+package in.tmb.userapp.dao;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class UserAppDAOImpl implements UserAppDAO {
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Override
+    public boolean updatePassword(String mobile, String newPassword) {
+        try {
+            String sql = "UPDATE user_app SET password = ? WHERE mobile = ?";
+            int rowsUpdated = jdbcTemplate.update(sql, newPassword, mobile);
+
+            // If the update is successful, return true
+            return rowsUpdated > 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+}
+
+✅ Step 6: Verify Everything
+
+Now, everything should work together.
+
+    reset_password.jsp will be displayed to the user.
+
+    On submit, the resetPassword.do action will be handled by the controller.
+
+    Controller calls the UserAppServiceImpl to update the password.
+
+    Service calls the UserAppDAOImpl to update the password in the database.
+
+✅ Final Thoughts
+
+    Security: You might want to hash the password using a hashing function like BCrypt before saving it to the database. Let me know if you'd like me to integrate that.
+
+    Mobile Verification: You can also add an OTP verification before allowing the user to reset their password to improve security.
+
+
